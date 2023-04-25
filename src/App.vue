@@ -1,5 +1,30 @@
 <template>
   <div class="container mx-auto flex flex-col items-center bg-gray-100 p-4">
+    <div
+      v-if="loader"
+      class="fixed w-100 h-100 opacity-80 bg-purple-800 inset-0 z-50 flex items-center justify-center"
+    >
+      <svg
+        class="animate-spin -ml-1 mr-3 h-12 w-12 text-white"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        ></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        ></path>
+      </svg>
+    </div>
     <div class="container">
       <section>
         <div class="flex">
@@ -12,6 +37,7 @@
               <input
                 v-model="ticker"
                 @keydown.enter="add"
+                @input="print"
                 type="text"
                 name="wallet"
                 id="wallet"
@@ -20,19 +46,21 @@
               />
             </div>
             <div
-              class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
+              v-if="tickersPlaceholders.length"
+              class="flex bg-white shadow-md p-1 rounded-md flex-wrap"
             >
+              <!-- @click="ticker = tickItem" -->
               <span
-                v-for="(p, idx) in tickersPlaceholders"
+                v-for="(tickItem, idx) in tickersPlaceholders"
                 :key="idx"
-                @click="ticker = p"
+                @click="placeholderHandler(tickItem)"
                 class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
               >
-                {{ p }}
+                {{ tickItem }}
               </span>
             </div>
             <!-- TODO Потом удалить класс .hidden -->
-            <div class="text-sm text-red-600 hidden">
+            <div v-if="isAdded" class="text-sm text-red-600">
               Такой тикер уже добавлен
             </div>
           </div>
@@ -158,14 +186,26 @@ export default {
     return {
       ticker: "",
       tickers: [],
-      tickersPlaceholders: ["BTC", "DOGE", "BCH", "CHD"],
+      tickersPlaceholders: [],
       sel: null,
       graph: [],
+      coinsNames: null,
+      isAdded: false,
+      loader: true,
     };
   },
 
-  created() {
-    console.log("12312");
+  async created() {
+    const response = await fetch(
+      "https://min-api.cryptocompare.com/data/all/coinlist?summary=true"
+    );
+    const data = await response.json();
+    // this.coinsNames = data.Data;
+    this.coinsNames = Object.entries(data.Data);
+  },
+
+  mounted() {
+    this.loader = false;
   },
 
   methods: {
@@ -173,8 +213,30 @@ export default {
       this.tickers = this.tickers.filter((item) => item !== t);
     },
 
+    print() {
+      this.isAdded = false;
+      const filtered = this.coinsNames
+        .filter((item) => item[0].indexOf(this.ticker.toUpperCase()) === 0)
+        .map((item) => item[0]);
+      this.tickersPlaceholders = filtered.slice(0, 4);
+      // const filtered = this.coinsNames.filter((item) => console.log(item[0]));
+      // this.tickersPlaceholders = filtered.map((item) => item[0]);
+      // console.log(this.ticker);
+    },
+
+    placeholderHandler(tickItem) {
+      this.ticker = tickItem;
+      this.add();
+    },
+
     add() {
-      const currentTicker = { name: this.ticker, price: "-" };
+      const currentTicker = { name: this.ticker.toUpperCase(), price: "-" };
+      this.isAdded = this.tickers.some(
+        (item) => item.name === currentTicker.name
+      );
+      if (this.isAdded) {
+        return;
+      }
       this.tickers.push(currentTicker);
       setInterval(async () => {
         const response = await fetch(
@@ -196,6 +258,7 @@ export default {
         }
       }, 3000);
       this.ticker = "";
+      this.tickersPlaceholders = [];
     },
 
     select(ticket) {
