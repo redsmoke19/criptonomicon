@@ -88,15 +88,40 @@
       </section>
       <template v-if="tickers.length > 0">
         <hr class="w-full border-t border-gray-600 my-4" />
+        <div class="filter-inner flex items-center justify-between">
+          <div class="filter">
+            <span class="mr-2">Фильтр:</span>
+            <input type="text" v-model="filter" />
+          </div>
+          <div class="pagination flex">
+            <button
+              @click="page -= 1"
+              :disabled="page <= 1"
+              type="button"
+              class="my-4 mr-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            >
+              Назад
+            </button>
+            <button
+              @click="page = page + 1"
+              type="button"
+              :disabled="hasNextPage === false"
+              class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            >
+              Вперед
+            </button>
+          </div>
+        </div>
+        <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <!-- Полей :key должно быть уникальным, мы ведь не хотим что бы нашим ключом еще кто то воспользоваться -->
           <!-- Во vue больше для классов используется синтаксис объекта. И читается это так, ключ объекта это как, который нужно добавить, а значение это условие, при котором класс будет добавляться -->
           <div
-            v-for="item in tickers"
+            v-for="item in paginatedTickers"
             :key="item.name"
             @click="select(item)"
             :class="{
-              'border-4': sel === item,
+              'border-4': selectedTicker === item,
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -131,22 +156,22 @@
           </div>
         </dl>
       </template>
-      <template v-if="sel">
+      <template v-if="selectedTicker">
         <hr class="w-full border-t border-gray-600 my-4" />
         <section class="relative">
           <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
-            {{ sel.name }} - USD
+            {{ selectedTicker.name }} - USD
           </h3>
           <div class="flex items-end border-gray-600 border-b border-l h-64">
             <div
-              v-for="(bar, idx) in normalizeGraph()"
+              v-for="(bar, idx) in normalizedGraph"
               :key="idx"
               :style="{ height: `${bar}%` }"
               class="bg-purple-800 border w-10"
             ></div>
           </div>
           <button
-            @click="sel = null"
+            @click="selectedTicker = null"
             type="button"
             class="absolute top-0 right-0"
           >
@@ -185,17 +210,88 @@ export default {
   data() {
     return {
       ticker: "",
+      filter: "",
+
       tickers: [],
       tickersPlaceholders: [],
-      sel: null,
       graph: [],
+
+      selectedTicker: null,
       coinsNames: null,
+
       isAdded: false,
       loader: true,
+
+      page: 1,
     };
   },
 
+  computed: {
+    startIndex() {
+      return (this.page - 1) * 6;
+    },
+
+    endIndex() {
+      return this.page * 6;
+    },
+
+    filteredTickers() {
+      return this.tickers.filter((item) =>
+        item.name.includes(this.filter.toUpperCase())
+      );
+    },
+
+    paginatedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex);
+    },
+
+    hasNextPage() {
+      return this.filteredTickers.length > this.endIndex;
+    },
+
+    normalizedGraph() {
+      const minValue = Math.min(...this.graph);
+      const maxValue = Math.max(...this.graph);
+
+      if (minValue === maxValue) {
+        return this.graph.map(() => 5); // вернуть массив равных значений
+      }
+      // На первый кругах интервала значение minValue и maxValue развны, из за чего в знаменателе в формуле равно 0, а на 0 делить нельзя, поэтому там NaN. Тут обязательно нужна разница в значениях
+      return this.graph.map((price) => {
+        return 5 + ((price - minValue) * 95) / (maxValue - minValue);
+      });
+    },
+
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
+      };
+    },
+  },
+
   created() {
+    console.log(typeof this.page);
+    const windowData = Object.fromEntries(
+      new URL(window.location).searchParams.entries()
+    );
+
+    // Альтернативный вариант записи условий
+    const VALID_KEYS = ["filter", "page"];
+
+    VALID_KEYS.forEach((key) => {
+      if (windowData[key]) {
+        this[key] = windowData[key];
+      }
+    });
+
+    // if (windowData.filter) {
+    //   this.filter = windowData.filter;
+    // }
+    //
+    // if (windowData.page) {
+    //   this.page = Number(windowData.page);
+    // }
     const loadCoinData = async () => {
       const response = await fetch(
         "https://min-api.cryptocompare.com/data/all/coinlist?summary=true"
@@ -206,6 +302,7 @@ export default {
     loadCoinData();
 
     const tickersData = localStorage.getItem("criptonomicon-list");
+
     if (tickersData) {
       this.tickers = JSON.parse(tickersData);
       this.tickers.forEach((ticker) => {
@@ -235,15 +332,11 @@ export default {
         resultTicker.price =
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
-        if (this.sel?.name === tickerName) {
+        if (this.selectedTicker?.name === tickerName) {
           this.graph.push(data.USD);
         }
       }, 3000);
       this.ticker = "";
-    },
-
-    handleDelete(t) {
-      this.tickers = this.tickers.filter((item) => item !== t);
     },
 
     print() {
@@ -267,29 +360,64 @@ export default {
       if (this.isAdded) {
         return;
       }
-      this.tickers.push(currentTicker);
+      // Такой способ нужен для того что бы наш массив обновится
+      // и сработал watch на массиве tickers
+      // this.tickers.push(currentTicker);
+      this.tickers = [...this.tickers, currentTicker];
 
-      localStorage.setItem("criptonomicon-list", JSON.stringify(this.tickers));
       this.subscribeToUpdate(currentTicker.name);
       this.tickersPlaceholders = [];
+      this.filter = "";
     },
 
     select(ticket) {
-      this.sel = ticket;
+      this.selectedTicker = ticket;
+    },
+
+    handleDelete(tickerToRemove) {
+      this.tickers = this.tickers.filter((item) => item !== tickerToRemove);
+      // Обновляем localStorage
+      // Это старый код. Теперь из-за того что мы сделали для tickers watch
+      // у нас локал сторадж автоматически сам обновляется
+      // localStorage.setItem("criptonomicon-list", JSON.stringify(this.tickers));
+
+      // Когда у нас показан график тикера и мы этот тикер удаляем,
+      // то для того, что бы убрать график нужно следующий код
+      if (this.selectedTicker === tickerToRemove) {
+        this.selectedTicker = null;
+      }
+    },
+  },
+
+  watch: {
+    tickers() {
+      localStorage.setItem("criptonomicon-list", JSON.stringify(this.tickers));
+    },
+
+    selectedTicker() {
       this.graph = [];
     },
 
-    normalizeGraph() {
-      const minValue = Math.min(...this.graph);
-      const maxValue = Math.max(...this.graph);
-
-      if (minValue === maxValue) {
-        return this.graph.map(() => 5); // вернуть массив равных значений
+    paginatedTickers() {
+      // Если мы на страницы удалили все элементы, то у нас появится пустая страница,
+      // что бы этого не было мы должны проверить что если массив пустой и у нас страниц больше чем одна,
+      // то мы должны вернуться на страницу назад
+      if (this.paginatedTickers.length === 0 && this.page > 1) {
+        this.page -= 1;
       }
-      // На первый кругах интервала значение minValue и maxValue развны, из за чего в знаменателе в формуле равно 0, а на 0 делить нельзя, поэтому там NaN. Тут обязательно нужна разница в значениях
-      return this.graph.map((price) => {
-        return 5 + ((price - minValue) * 95) / (maxValue - minValue);
-      });
+    },
+
+    filter() {
+      this.page = 1;
+    },
+
+    pageStateOptions(value) {
+      console.log(value);
+      window.history.pushState(
+        null,
+        document.title,
+        `${window.location.pathname}?filter=${value.filter}&page=${value.page}`
+      );
     },
   },
 };
