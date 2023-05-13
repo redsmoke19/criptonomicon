@@ -269,7 +269,7 @@ export default {
       });
     }
 
-    setInterval(this.updateTickers, 5000);
+    // setInterval(this.updateTickers, 5000);
   },
 
   computed: {
@@ -302,7 +302,8 @@ export default {
       if (minValue === maxValue) {
         return this.graph.map(() => 5); // вернуть массив равных значений
       }
-      // На первый кругах интервала значение minValue и maxValue развны, из за чего в знаменателе в формуле равно 0, а на 0 делить нельзя, поэтому там NaN. Тут обязательно нужна разница в значениях
+      // На первый кругах интервала значение minValue и maxValue равны, из-за чего в знаменателе в формуле равно 0,
+      // а на 0 делить нельзя, поэтому там NaN. Тут обязательно нужна разница в значениях
       return this.graph.map((price) => {
         return 5 + ((price - minValue) * 95) / (maxValue - minValue);
       });
@@ -339,16 +340,16 @@ export default {
       return price > 1 ? price.toFixed(2) : price.toPrecision(2);
     },
 
-    async updateTickers() {
-      // if (!this.tickers.length) {
-      //   return;
-      // }
-      // const exchangeData = await loadTickers(this.tickers.map((t) => t.name));
-      // this.tickers.forEach((ticker) => {
-      //   const price = exchangeData[ticker.name.toUpperCase()];
-      //   ticker.price = price ?? "-";
-      // });
-    },
+    // async updateTickers() {
+    // if (!this.tickers.length) {
+    //   return;
+    // }
+    // const exchangeData = await loadTickers(this.tickers.map((t) => t.name));
+    // this.tickers.forEach((ticker) => {
+    //   const price = exchangeData[ticker.name.toUpperCase()];
+    //   ticker.price = price ?? "-";
+    // });
+    // },
 
     print() {
       this.isAdded = false;
