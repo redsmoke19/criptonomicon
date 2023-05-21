@@ -162,7 +162,10 @@
           <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
             {{ selectedTicker.name }} - USD
           </h3>
-          <div class="flex items-end border-gray-600 border-b border-l h-64">
+          <div
+            ref="graph"
+            class="flex items-end border-gray-600 border-b border-l h-64"
+          >
             <div
               v-for="(bar, idx) in normalizedGraph"
               :key="idx"
@@ -217,6 +220,7 @@ export default {
       tickers: [],
       tickersPlaceholders: [],
       graph: [],
+      maxGraphElements: 1,
 
       selectedTicker: null,
       coinsNames: null,
@@ -268,8 +272,15 @@ export default {
         });
       });
     }
+  },
 
-    // setInterval(this.updateTickers, 5000);
+  mounted() {
+    window.addEventListener("resize", this.calculateMaxGraphElements);
+    this.loader = false;
+  },
+
+  beforeMount() {
+    window.removeEventListener("resize", this.calculateMaxGraphElements);
   },
 
   computed: {
@@ -317,17 +328,23 @@ export default {
     },
   },
 
-  mounted() {
-    this.loader = false;
-  },
-
   methods: {
+    calculateMaxGraphElements() {
+      if (!this.$refs.graph) {
+        return;
+      }
+      this.maxGraphElements = this.$refs.graph.clientWidth / 38;
+    },
+
     updateTicker(tickerName, price) {
       this.tickers
         .filter((ticker) => ticker.name === tickerName)
         .forEach((ticker) => {
           if (ticker === this.selectedTicker) {
             this.graph.push(price);
+            while (this.graph.length > this.maxGraphElements) {
+              this.graph.shift();
+            }
           }
           ticker.price = price;
         });
@@ -339,17 +356,6 @@ export default {
       }
       return price > 1 ? price.toFixed(2) : price.toPrecision(2);
     },
-
-    // async updateTickers() {
-    // if (!this.tickers.length) {
-    //   return;
-    // }
-    // const exchangeData = await loadTickers(this.tickers.map((t) => t.name));
-    // this.tickers.forEach((ticker) => {
-    //   const price = exchangeData[ticker.name.toUpperCase()];
-    //   ticker.price = price ?? "-";
-    // });
-    // },
 
     print() {
       this.isAdded = false;
