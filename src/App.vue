@@ -26,66 +26,11 @@
       </svg>
     </div>
     <div class="container">
-      <section>
-        <div class="flex">
-          <div class="max-w-xs">
-            <label for="wallet" class="block text-sm font-medium text-gray-700"
-              >Тикер</label
-            >
-            <div class="mt-1 relative rounded-md shadow-md">
-              <!-- v-model говорит нам "связи в две стороны данный инпут с данными -->
-              <input
-                v-model="ticker"
-                @keydown.enter="add"
-                @input="print"
-                type="text"
-                name="wallet"
-                id="wallet"
-                class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
-                placeholder="Например DOGE"
-              />
-            </div>
-            <div
-              v-if="tickersPlaceholders.length"
-              class="flex bg-white shadow-md p-1 rounded-md flex-wrap"
-            >
-              <!-- @click="ticker = tickItem" -->
-              <span
-                v-for="(tickItem, idx) in tickersPlaceholders"
-                :key="idx"
-                @click="placeholderHandler(tickItem)"
-                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-              >
-                {{ tickItem }}
-              </span>
-            </div>
-            <!-- TODO Потом удалить класс .hidden -->
-            <div v-if="isAdded" class="text-sm text-red-600">
-              Такой тикер уже добавлен
-            </div>
-          </div>
-        </div>
-        <button
-          @click="add"
-          type="button"
-          class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-        >
-          <!-- Heroicon name: solid/mail -->
-          <svg
-            class="-ml-0.5 mr-2 h-6 w-6"
-            xmlns="http://www.w3.org/2000/svg"
-            width="30"
-            height="30"
-            viewBox="0 0 24 24"
-            fill="#ffffff"
-          >
-            <path
-              d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"
-            ></path>
-          </svg>
-          Добавить
-        </button>
-      </section>
+      <app-ticker
+        @add-ticker="add"
+        :disabled="tooManyTickersAdded"
+        :tickers="tickers"
+      />
       <template v-if="tickers.length > 0">
         <hr class="w-full border-t border-gray-600 my-4" />
         <div class="filter-inner flex items-center justify-between">
@@ -208,24 +153,25 @@
 
 <script>
 import { subscribeToTicker, unsubscribeFromTicker } from "@/api";
+import AppTicker from "@/components/AppTicker.vue";
 
 export default {
   name: "App",
 
+  components: {
+    AppTicker,
+  },
+
   data() {
     return {
-      ticker: "",
       filter: "",
 
       tickers: [],
-      tickersPlaceholders: [],
       graph: [],
       maxGraphElements: 1,
 
       selectedTicker: null,
-      coinsNames: null,
 
-      isAdded: false,
       loader: true,
 
       page: 1,
@@ -253,14 +199,6 @@ export default {
     // if (windowData.page) {
     //   this.page = Number(windowData.page);
     // }
-    const loadCoinData = async () => {
-      const response = await fetch(
-        "https://min-api.cryptocompare.com/data/all/coinlist?summary=true"
-      );
-      const data = await response.json();
-      this.coinsNames = Object.entries(data.Data);
-    };
-    loadCoinData();
 
     const tickersData = localStorage.getItem("criptonomicon-list");
 
@@ -284,6 +222,10 @@ export default {
   },
 
   computed: {
+    tooManyTickersAdded() {
+      return this.tickers.length > 4;
+    },
+
     startIndex() {
       return (this.page - 1) * 6;
     },
@@ -357,34 +299,22 @@ export default {
       return price > 1 ? price.toFixed(2) : price.toPrecision(2);
     },
 
-    print() {
-      this.isAdded = false;
-      const filtered = this.coinsNames
-        .filter((item) => item[0].indexOf(this.ticker.toUpperCase()) === 0)
-        .map((item) => item[0]);
-      this.tickersPlaceholders = filtered.slice(0, 4);
-    },
+    add(ticker) {
+      const currentTicker = { name: ticker.toUpperCase(), price: "-" };
 
-    placeholderHandler(tickItem) {
-      this.ticker = tickItem;
-      this.add();
-    },
+      // Todo сделать
+      // this.isAdded = this.tickers.some(
+      //   (item) => item.name === currentTicker.name
+      // );
+      // if (this.isAdded) {
+      //   return;
+      // }
 
-    add() {
-      const currentTicker = { name: this.ticker.toUpperCase(), price: "-" };
-      this.isAdded = this.tickers.some(
-        (item) => item.name === currentTicker.name
-      );
-      if (this.isAdded) {
-        return;
-      }
       // Такой способ нужен для того что бы наш массив обновится
       // и сработал watch на массиве tickers
       // this.tickers.push(currentTicker);
       this.tickers = [...this.tickers, currentTicker];
 
-      this.tickersPlaceholders = [];
-      this.ticker = "";
       this.filter = "";
       subscribeToTicker(currentTicker.name, (newPrice) => {
         this.updateTicker(currentTicker.name, newPrice);
